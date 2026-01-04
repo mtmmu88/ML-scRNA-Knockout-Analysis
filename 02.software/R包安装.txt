@@ -1,0 +1,17 @@
+#常见包的安装方法
+install.packages("pheatmap")
+
+install.packages("ggplot2")
+
+
+#bioconductor包
+if (!require("BiocManager", quietly = TRUE))
+    install.packages("BiocManager")
+BiocManager::install("limma")
+
+
+if (!require("BiocManager", quietly = TRUE))
+    install.packages("BiocManager")
+BiocManager::install("edgeR")
+
+
