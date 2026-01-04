@@ -110,12 +110,18 @@ download_and_process <- function(geoID) {
   colnames(probe2gene) <- c("probe_id", "gene_symbol")
 
   #清理基因符号（处理不同格式）
-  #格式1: "NM_xxx // GENE // description // ..."
-  if (grepl("//", probe2gene$gene_symbol[1])) {
-    probe2gene$gene_symbol <- gsub(".*// (.*?) //.*", "\\1", probe2gene$gene_symbol)
+  #格式: "NM_xxx // GENE // description // ..." 或多个 "/// NM_xxx // GENE2 // ..."
+  if (geneCol == "gene_assignment") {
+    # 只取第一个注释（///之前）
+    probe2gene$gene_symbol <- gsub(" ///.*", "", probe2gene$gene_symbol)
+    # 提取第二个字段（基因符号）
+    probe2gene$gene_symbol <- sapply(strsplit(probe2gene$gene_symbol, " // "), function(x) {
+      if (length(x) >= 2) return(x[2]) else return("")
+    })
+  } else {
+    #其他格式: "GENE /// GENE2"
+    probe2gene$gene_symbol <- gsub(" ///.*", "", probe2gene$gene_symbol)
   }
-  #格式2: "GENE /// GENE2"
-  probe2gene$gene_symbol <- gsub(" ///.*", "", probe2gene$gene_symbol)
   probe2gene$gene_symbol <- trimws(probe2gene$gene_symbol)
 
   #去除空值和NA
