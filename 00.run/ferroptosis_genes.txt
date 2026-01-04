@@ -1,0 +1,50 @@
+Gene	Category	Description
+ACSL4	Driver	Acyl-CoA synthetase long chain family member 4
+LPCAT3	Driver	Lysophosphatidylcholine acyltransferase 3
+ALOX15	Driver	Arachidonate 15-lipoxygenase
+ALOX12	Driver	Arachidonate 12-lipoxygenase
+ALOX5	Driver	Arachidonate 5-lipoxygenase
+TFRC	Driver	Transferrin receptor
+SLC7A11	Suppressor	Solute carrier family 7 member 11 (xCT)
+GPX4	Suppressor	Glutathione peroxidase 4
+NCOA4	Driver	Nuclear receptor coactivator 4
+FTH1	Suppressor	Ferritin heavy chain 1
+FTL	Suppressor	Ferritin light chain
+IREB2	Regulator	Iron responsive element binding protein 2
+HMOX1	Regulator	Heme oxygenase 1
+NFS1	Suppressor	NFS1 cysteine desulfurase
+SLC3A2	Suppressor	Solute carrier family 3 member 2
+GSS	Suppressor	Glutathione synthetase
+GCLC	Suppressor	Glutamate-cysteine ligase catalytic subunit
+GCLM	Suppressor	Glutamate-cysteine ligase modifier subunit
+NFE2L2	Suppressor	Nuclear factor erythroid 2 like 2 (NRF2)
+KEAP1	Regulator	Kelch like ECH associated protein 1
+VDAC2	Regulator	Voltage dependent anion channel 2
+VDAC3	Regulator	Voltage dependent anion channel 3
+CISD1	Suppressor	CDGSH iron sulfur domain 1
+CS	Marker	Citrate synthase
+ACO2	Marker	Aconitase 2
+PTGS2	Marker	Prostaglandin-endoperoxide synthase 2 (COX2)
+CHAC1	Marker	ChaC glutathione specific gamma-glutamylcyclotransferase 1
+SLC40A1	Regulator	Solute carrier family 40 member 1 (Ferroportin)
+HSPB1	Suppressor	Heat shock protein family B member 1
+HSPA5	Suppressor	Heat shock protein family A member 5
+ATF4	Regulator	Activating transcription factor 4
+DDIT3	Marker	DNA damage inducible transcript 3 (CHOP)
+SAT1	Driver	Spermidine/spermine N1-acetyltransferase 1
+GLS2	Driver	Glutaminase 2
+SLC1A5	Driver	Solute carrier family 1 member 5
+CARS	Suppressor	Cysteinyl-tRNA synthetase
+CBS	Suppressor	Cystathionine beta-synthase
+FANCD2	Suppressor	FA complementation group D2
+MT1G	Suppressor	Metallothionein 1G
+DPP4	Driver	Dipeptidyl peptidase 4
+CDKN1A	Suppressor	Cyclin dependent kinase inhibitor 1A (p21)
+TP53	Regulator	Tumor protein p53
+SLC7A5	Driver	Solute carrier family 7 member 5
+STEAP3	Driver	STEAP3 metalloreductase
+DMT1	Driver	Divalent metal transporter 1
+PROM2	Driver	Prominin 2
+FSP1	Suppressor	Ferroptosis suppressor protein 1 (AIFM2)
+DHODH	Suppressor	Dihydroorotate dehydrogenase
+GCH1	Suppressor	GTP cyclohydrolase 1
