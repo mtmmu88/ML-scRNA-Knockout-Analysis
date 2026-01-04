@@ -11,6 +11,13 @@
 library(GEOquery)
 library(limma)
 
+#======================== 网络设置 ========================
+#增加超时时间（600秒 = 10分钟）
+options(timeout = 600)
+
+#设置下载重试次数
+maxRetry <- 3
+
 #======================== 参数设置 ========================
 #数据集列表
 datasets <- c("GSE59867", "GSE57338", "GSE66360")
@@ -23,15 +30,40 @@ setwd("D:/MDH2_HF_full")         #Windows用户
 targetGenes <- c("MDH2", "SIRT5", "GPX4", "ACSL4", "TFRC", "SLC7A11",
                  "LPCAT3", "NCOA4", "FTH1", "FTL", "NFE2L2", "VDAC2")
 
-#======================== 下载函数 ========================
+#======================== 下载函数（带重试） ========================
+download_with_retry <- function(geoID, maxRetry = 3) {
+  for (attempt in 1:maxRetry) {
+    cat("  尝试第", attempt, "次下载...\n")
+    result <- tryCatch({
+      gset <- getGEO(geoID, GSEMatrix = TRUE, getGPL = TRUE, destdir = ".")
+      return(gset)
+    }, error = function(e) {
+      cat("  下载失败：", conditionMessage(e), "\n")
+      if (attempt < maxRetry) {
+        waitTime <- 2^attempt * 5  # 10秒, 20秒, 40秒
+        cat("  等待", waitTime, "秒后重试...\n")
+        Sys.sleep(waitTime)
+      }
+      return(NULL)
+    })
+    if (!is.null(result)) return(result)
+  }
+  return(NULL)
+}
+
 download_and_process <- function(geoID) {
   cat("\n========================================\n")
   cat("正在处理：", geoID, "\n")
   cat("========================================\n")
 
-  #下载数据
-  cat("下载中...\n")
-  gset <- getGEO(geoID, GSEMatrix = TRUE, getGPL = TRUE, destdir = ".")
+  #下载数据（带重试）
+  cat("下载中（超时设置：10分钟）...\n")
+  gset <- download_with_retry(geoID, maxRetry)
+
+  if (is.null(gset)) {
+    cat("错误：", geoID, "下载失败，已重试", maxRetry, "次\n")
+    return(NULL)
+  }
 
   if (length(gset) > 1) {
     idx <- grep(geoID, attr(gset, "names"))
