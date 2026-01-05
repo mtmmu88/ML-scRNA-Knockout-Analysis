@@ -10,16 +10,13 @@
 #加载包
 library(GEOquery)
 library(limma)
+library(AnnotationDbi)
 
 #======================== 网络设置 ========================
-#增加超时时间（600秒 = 10分钟）
 options(timeout = 600)
-
-#设置下载重试次数
 maxRetry <- 3
 
 #======================== 参数设置 ========================
-#数据集列表
 datasets <- c("GSE59867", "GSE57338", "GSE66360")
 
 #设置工作目录（修改为你的路径）
@@ -30,17 +27,24 @@ setwd("D:/MDH2_HF_full")         #Windows用户
 targetGenes <- c("MDH2", "SIRT5", "GPX4", "ACSL4", "TFRC", "SLC7A11",
                  "LPCAT3", "NCOA4", "FTH1", "FTL", "NFE2L2", "VDAC2")
 
+#平台对应的注释包
+platformDB <- list(
+  "GPL6244" = "hugene10sttranscriptcluster.db",
+  "GPL11532" = "hugene11sttranscriptcluster.db",
+  "GPL570" = "hgu133plus2.db"
+)
+
 #======================== 下载函数（带重试） ========================
-download_with_retry <- function(geoID, maxRetry = 3) {
+download_with_retry <- function(geoID, getGPL = FALSE, maxRetry = 3) {
   for (attempt in 1:maxRetry) {
     cat("  尝试第", attempt, "次下载...\n")
     result <- tryCatch({
-      gset <- getGEO(geoID, GSEMatrix = TRUE, getGPL = TRUE, destdir = ".")
+      gset <- getGEO(geoID, GSEMatrix = TRUE, getGPL = getGPL, destdir = ".")
       return(gset)
     }, error = function(e) {
       cat("  下载失败：", conditionMessage(e), "\n")
       if (attempt < maxRetry) {
-        waitTime <- 2^attempt * 5  # 10秒, 20秒, 40秒
+        waitTime <- 2^attempt * 5
         cat("  等待", waitTime, "秒后重试...\n")
         Sys.sleep(waitTime)
       }
@@ -51,17 +55,20 @@ download_with_retry <- function(geoID, maxRetry = 3) {
   return(NULL)
 }
 
+#======================== 处理函数 ========================
 download_and_process <- function(geoID) {
   cat("\n========================================\n")
   cat("正在处理：", geoID, "\n")
   cat("========================================\n")
 
-  #下载数据（带重试）
+  #下载数据（不下载GPL，使用本地注释包）
   cat("下载中（超时设置：10分钟）...\n")
-  gset <- download_with_retry(geoID, maxRetry)
+
+  #先尝试不下载GPL
+  gset <- download_with_retry(geoID, getGPL = FALSE, maxRetry)
 
   if (is.null(gset)) {
-    cat("错误：", geoID, "下载失败，已重试", maxRetry, "次\n")
+    cat("错误：", geoID, "下载失败\n")
     return(NULL)
   }
 
@@ -80,54 +87,94 @@ download_and_process <- function(geoID) {
   #提取样本信息
   phenoData <- pData(gset)
 
-  #获取平台注释
+  #获取平台
   gpl <- annotation(gset)
   cat("平台：", gpl, "\n")
 
-  platInfo <- getGEO(gpl, destdir = ".")
-  annot <- Table(platInfo)
+  #======================== 探针转基因（使用注释包） ========================
+  probe2gene <- NULL
 
-  #======================== 探针转基因 ========================
-  #根据平台选择基因符号列
-  if ("Gene Symbol" %in% colnames(annot)) {
-    geneCol <- "Gene Symbol"
-  } else if ("gene_assignment" %in% colnames(annot)) {
-    geneCol <- "gene_assignment"
-  } else if ("GENE_SYMBOL" %in% colnames(annot)) {
-    geneCol <- "GENE_SYMBOL"
-  } else if ("Symbol" %in% colnames(annot)) {
-    geneCol <- "Symbol"
-  } else {
-    cat("警告：未找到基因符号列\n")
-    print(colnames(annot))
-    return(NULL)
+  #检查是否有对应的注释包
+  if (gpl %in% names(platformDB)) {
+    dbName <- platformDB[[gpl]]
+    cat("使用注释包：", dbName, "\n")
+
+    #尝试加载注释包
+    if (require(dbName, character.only = TRUE, quietly = TRUE)) {
+      db <- get(dbName)
+
+      #获取探针到基因符号的映射
+      mapping <- tryCatch({
+        select(db, keys = rownames(expMatrix), columns = "SYMBOL", keytype = "PROBEID")
+      }, error = function(e) {
+        cat("注释包查询失败，尝试其他方法...\n")
+        NULL
+      })
+
+      if (!is.null(mapping)) {
+        probe2gene <- mapping
+        colnames(probe2gene) <- c("probe_id", "gene_symbol")
+      }
+    } else {
+      cat("注释包未安装，尝试下载GPL文件...\n")
+    }
   }
 
-  cat("使用列：", geneCol, "\n")
+  #如果注释包不可用，尝试下载GPL或使用本地缓存
+  if (is.null(probe2gene)) {
+    cat("尝试从GPL文件获取注释...\n")
 
-  #创建探针到基因的映射
-  probe2gene <- annot[, c("ID", geneCol)]
-  colnames(probe2gene) <- c("probe_id", "gene_symbol")
-
-  #清理基因符号（处理不同格式）
-  #格式: "NM_xxx // GENE // description // ..." 或多个 "/// NM_xxx // GENE2 // ..."
-  if (geneCol == "gene_assignment") {
-    # 只取第一个注释（///之前）
-    probe2gene$gene_symbol <- gsub(" ///.*", "", probe2gene$gene_symbol)
-    # 提取第二个字段（基因符号）
-    probe2gene$gene_symbol <- sapply(strsplit(probe2gene$gene_symbol, " // "), function(x) {
-      if (length(x) >= 2) return(x[2]) else return("")
+    platInfo <- tryCatch({
+      getGEO(gpl, destdir = ".")
+    }, error = function(e) {
+      cat("GPL下载失败：", conditionMessage(e), "\n")
+      NULL
     })
-  } else {
-    #其他格式: "GENE /// GENE2"
-    probe2gene$gene_symbol <- gsub(" ///.*", "", probe2gene$gene_symbol)
-  }
-  probe2gene$gene_symbol <- trimws(probe2gene$gene_symbol)
 
-  #去除空值和NA
+    if (!is.null(platInfo)) {
+      annot <- Table(platInfo)
+
+      #根据平台选择基因符号列
+      if ("Gene Symbol" %in% colnames(annot)) {
+        geneCol <- "Gene Symbol"
+      } else if ("gene_assignment" %in% colnames(annot)) {
+        geneCol <- "gene_assignment"
+      } else if ("GENE_SYMBOL" %in% colnames(annot)) {
+        geneCol <- "GENE_SYMBOL"
+      } else if ("Symbol" %in% colnames(annot)) {
+        geneCol <- "Symbol"
+      } else {
+        cat("警告：未找到基因符号列\n")
+        print(colnames(annot))
+        return(NULL)
+      }
+
+      cat("使用列：", geneCol, "\n")
+
+      probe2gene <- annot[, c("ID", geneCol)]
+      colnames(probe2gene) <- c("probe_id", "gene_symbol")
+
+      #清理基因符号
+      if (geneCol == "gene_assignment") {
+        probe2gene$gene_symbol <- gsub(" ///.*", "", probe2gene$gene_symbol)
+        probe2gene$gene_symbol <- sapply(strsplit(probe2gene$gene_symbol, " // "), function(x) {
+          if (length(x) >= 2) return(x[2]) else return("")
+        })
+      } else {
+        probe2gene$gene_symbol <- gsub(" ///.*", "", probe2gene$gene_symbol)
+      }
+    } else {
+      cat("错误：无法获取探针注释\n")
+      return(NULL)
+    }
+  }
+
+  #清理
+  probe2gene$gene_symbol <- trimws(probe2gene$gene_symbol)
   probe2gene <- probe2gene[probe2gene$gene_symbol != "", ]
   probe2gene <- probe2gene[probe2gene$gene_symbol != "---", ]
   probe2gene <- probe2gene[!is.na(probe2gene$gene_symbol), ]
+  probe2gene <- unique(probe2gene)
 
   cat("有效探针-基因映射：", nrow(probe2gene), "\n")
 
@@ -135,7 +182,7 @@ download_and_process <- function(geoID) {
   expDF <- as.data.frame(expMatrix)
   expDF$probe_id <- rownames(expDF)
   expDF <- merge(probe2gene, expDF, by = "probe_id")
-  expDF <- expDF[, -1]  #删除probe_id列
+  expDF <- expDF[, -1]
 
   #同基因多探针取平均
   geneMatrix <- aggregate(. ~ gene_symbol, data = expDF, FUN = mean)
@@ -163,16 +210,13 @@ download_and_process <- function(geoID) {
   }
 
   #======================== 保存数据 ========================
-  #保存基因表达矩阵
   outMatrix <- rbind(id = colnames(geneMatrix), geneMatrix)
   write.table(outMatrix, file = paste0(geoID, ".geneMatrix.txt"),
               sep = "\t", quote = FALSE, col.names = FALSE)
 
-  #保存样本信息
   write.table(phenoData, file = paste0(geoID, ".phenotype.txt"),
               sep = "\t", quote = FALSE, row.names = TRUE)
 
-  #保存R对象
   save(geneMatrix, phenoData, file = paste0(geoID, ".RData"))
 
   cat("已保存：", geoID, ".geneMatrix.txt\n")
@@ -183,6 +227,10 @@ download_and_process <- function(geoID) {
 #======================== 批量下载 ========================
 cat("开始下载3个数据集...\n")
 cat("这可能需要10-20分钟，请耐心等待...\n")
+cat("\n提示：如果注释包未安装，请先运行：\n")
+cat("BiocManager::install(c('hugene10sttranscriptcluster.db',\n")
+cat("                       'hugene11sttranscriptcluster.db',\n")
+cat("                       'hgu133plus2.db'))\n\n")
 
 results <- list()
 for (geoID in datasets) {
